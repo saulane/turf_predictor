@@ -23,4 +23,4 @@ if __name__ == "__main__":
     prog = module.get_programme(args[1], args[2])
     courses = module.get_courses(prog)
 
-    partants = module.partants(courses)
+    partants = module.partants(courses, "data2.csv")

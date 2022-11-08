@@ -6,6 +6,7 @@ import statistics as st
 import datetime
 import os
 import requests_cache
+import time
 
 
 requests_cache.install_cache('turf_cache')
@@ -30,17 +31,21 @@ def get_programme(debut, fin):
     
     current_date_reunion = "0"
     current_programme = {}
-
-    for reunion in reunion_raw:
+    
+    
+    for i in range(len(reunion_raw)):
+        reunion = reunion_raw[i]
         date = reunion.get("href").split("/")[-2]
         hippodrome = reunion.text[2:].strip().replace(" (A ", " ").replace(")", "")
+        
+        
         date_pmu = "".join(date.split("-")[::-1])
         
         if current_date_reunion != date_pmu:
             current_date_reunion = date_pmu
             current_programme = requests.get(f"https://online.turfinfo.api.pmu.fr/rest/client/65/programme/{date_pmu}/", headers=headers).json()
-
         numReunion = 0
+#         print(hippodrome)
         for reunion_pmu in current_programme["programme"]["reunions"]:
             if hippodrome in reunion_pmu["hippodrome"]["libelleCourt"]:
                 numReunion = reunion_pmu["numOfficiel"]
@@ -48,21 +53,17 @@ def get_programme(debut, fin):
         
         if numReunion == 0:
             continue
-        
         course = {"date": date, "idHippo": reunion.get("href").split("/")[-1], "Hippodrome": hippodrome, "lien": reunion.get("href")}
         course["numReunion"] = numReunion
         programme.append(course)
     
-    print(f"Programme recupéré du {debut} au {fin}")
     return pd.DataFrame(programme)
 
 
 def get_courses(reunions):
-    courses_list = []
-    
+    courses_list = []  
     participants_list = []
-    
-    
+
     for i, row in reunions.iterrows():
         url = f"https://www.letrot.com/{row['lien']}/json"
         date_pmu = "".join(row["date"].split("-")[::-1])    
@@ -71,24 +72,11 @@ def get_courses(reunions):
         for c in courses["course"]:
             if c["discipline"] == "Attelé":
                 course_id = row["date"].replace("-", "") + str(row["idHippo"]) + str(c["numCourse"])
-                participants_pmu = requests.get(f"https://online.turfinfo.api.pmu.fr/rest/client/65/programme/{date_pmu}/R{row['numReunion']}/C{c['numCourse']}/participants", headers=headers)
-                try:
-                    participants = participants_pmu.json()["participants"]
-                except:
-                    continue
-                participants_with_id = [dict(item, **{"id": course_id}) for item in participants]    
-                participants_list.extend(participants_with_id)
-                
-                courses_list.append({"date": row["date"], "id": course_id, "hippodrome": courses["nomHippodrome"], "idHippo": row["idHippo"],**c})
-    
-    
-    participants_df = pd.DataFrame(participants_list)
-    participants_df.to_csv("participants.csv", index=True)
-    print("Courses récupérée")
+                courses_list.append({"date": row["date"], "id": course_id, "numReunion": row["numReunion"], "hippodrome": courses["nomHippodrome"], "idHippo": row["idHippo"],**c})
     return pd.DataFrame(courses_list)
 
 
-def make_df_tableau_partant(courseId, date, idHippo, numCourse, classement):
+def info_tableau_partant(courseId, date, idHippo, numCourse, numReunion, classement):
     chevaux = []
     url = f"https://www.letrot.com/stats/fiche-course/{date}/{idHippo}/{numCourse}/partants/tableau"
     r = requests.get(url, headers=headers)
@@ -97,24 +85,42 @@ def make_df_tableau_partant(courseId, date, idHippo, numCourse, classement):
     table = soup.find("table", {"id": "result_table"}).find("tbody")
     rows = table.find_all("tr")
     
-    classement = list(map(int, classement.split(" - ")))
+    url_arrivee = f"https://www.letrot.com/stats/fiche-course/{date}/{idHippo}/{numCourse}/resultats/arrivee-definitive"
+    r_arrivee = requests.get(url_arrivee, headers=headers)
+    soup_arrivee = bs(r_arrivee.text, "html.parser")
+    table_arrivee = soup_arrivee.find("table", {"id": "result_table"}).find("tbody")
+    rows_arrivee = table_arrivee.find_all("tr")
     
-    for row in rows:
+    classement = {row.select("td")[1].text : row.select("td")[0].find("span", {"class": "bold"}).text for row in rows_arrivee}
+    
+    
+    date_pmu = "".join(date.split("-")[::-1])  
+    participants_pmu = requests.get(f"https://online.turfinfo.api.pmu.fr/rest/client/65/programme/{date_pmu}/R{numReunion}/C{numCourse}/participants", headers=headers)
+    try:
+        participants = participants_pmu.json()["participants"]
+    except:
+        raise Exception("probleme api pmu")
+    participants = pd.json_normalize(participants, sep="_").to_dict(orient="records")
+    participants_with_id = [dict(item, **{"id": courseId, "numReunion": numReunion}) for item in participants]    
+    participants_pmu_df = pd.DataFrame(participants_with_id)
+    
+#     print(classement)
+    
+    for i,row in enumerate(rows):
             num = row.select("td")[0].find("span", {"class": "bold"}).text
             col = row.select("td")
             cheval = {}
-            
-            if num != "NP" and int(num) in classement:
-                cheval["classement"] = classement.index(int(num))
-            else:
-                cheval["classement"] = 0
-            
+            cheval["num"] = num
             cheval["nom"] = col[1].text
+            
+            if num == "NP":
+                continue
+            cheval["classement"] = classement[num]
             cheval["id"] = courseId
             cheval["date"] = date
             cheval["url"] = col[1].find("a").get("href")
             
-            #cheval["tpsLastRace"] = info_cheval(cheval["url"], date)
+            cheval.update(get_info_cheval(cheval["url"], date))
 
             cheval["fer"] = int(col[3].text) if col[3].text else 0
             cheval["firstTimeFer"] = True if col[3].find("div", {"class", "fer-first-time"}) else False
@@ -137,15 +143,24 @@ def make_df_tableau_partant(courseId, date, idHippo, numCourse, classement):
             cheval["music"] = list(filter(lambda x: x.isnumeric(), cheval["music"]))
 
             cheval["music"] = list(map(int, cheval["music"]))
+            
+            if len(cheval["music"]) < 4:
+                raise ValueError("not enough data")
+            
             cheval["nbArrivé"] = len(cheval["music"]) - cheval["music"].count("0")
             cheval["lastPerf"] = cheval["music"][0] if cheval["nbArrivé"] else 0
 
             arriveOnly = list(filter(None, cheval["music"]))
-            try:
-                cheval["meanPerf"] = np.mean(arriveOnly)
-                cheval["medianPerf"] = np.median(arriveOnly)
-                cheval["modePerf"] = st.mode(cheval["music"])
-            except:
+            if len(arriveOnly) > 0:
+                try:
+                    cheval["meanPerf"] = np.mean(arriveOnly)
+                    cheval["medianPerf"] = np.median(arriveOnly)
+                    cheval["modePerf"] = st.mode(cheval["music"])
+                except:
+                    cheval["meanPerf"] = 0
+                    cheval["medianPerf"] = 0
+                    cheval["modePerf"] = 0
+            else:
                 cheval["meanPerf"] = 0
                 cheval["medianPerf"] = 0
                 cheval["modePerf"] = 0
@@ -159,7 +174,8 @@ def make_df_tableau_partant(courseId, date, idHippo, numCourse, classement):
             cheval["gain"] = int(col[11].find("div", class_="gains").text.replace(" ", "")[:-1])
 
             chevaux.append(cheval)
-    return pd.DataFrame(chevaux)
+    combined = pd.merge(pd.DataFrame(chevaux), participants_pmu_df, how="left", left_on = ["id", "nom"], right_on = ["id", "nom"])
+    return combined
 
 
 def make_df_info_couple(courseId, date, idHippo, numCourse):
@@ -192,35 +208,64 @@ def get_info_cheval(url, date):
     r = requests.get(url + "-paginate-2", headers=headers)
     date_debut = datetime.date.fromisoformat(date)
     jsoned = r.json()["data"]
+
+    info_dict = {}
+
     for c in jsoned:
-        c["dateCourse"] = datetime.date.fromisoformat(bs(c["dateCourse"], "html.parser").find("span").text)
+        c["dateCourse"] = datetime.date.fromisoformat(c["dateCourseRaw"])
     
-    filtered = list(filter(lambda x: x["dateCourse"] < date_debut, jsoned))
+    filtered = list(filter(lambda x: x["dateCourse"] < date_debut and x["specialite"] == "A", jsoned))
     
-    return (date_debut - filtered[0]["dateCourse"]).days
+    info_dict["tpsLastRace"] = (date_debut - filtered[0]["dateCourse"]).days
+    
+    info_dict["last_race_dist"] = int(filtered[0]["distance"].replace(" ", ""))
+
+    return info_dict
 
 
-def partants(course):
+def partants(course, file="data.csv", save_time=60):
+    last_time_saved = time.time()
+
+    not_saved = None
+
+
     for i, course in course.iterrows():
         url = f"https://www.letrot.com/stats/fiche-course/{course['date']}/{course['idHippo']}/{course['numCourse']}"
         url_tableau_partant = url + "/partants/tableau"
         url_cheval = url + "/partants/chevaux"
-        
-        dict_tableau_partant = make_df_tableau_partant(course['id'],course['date'], course['idHippo'],course['numCourse'], course["classement"])
+        try:
+            dict_tableau_partant = info_tableau_partant(course['id'],course['date'], course['idHippo'],course['numCourse'], course["numReunion"], course["classement"])
+        except:
+            continue
         dict_couple = make_df_info_couple(course['id'],course['date'], course['idHippo'],course['numCourse'])
         
 #         combined = dict_tableau_partant.join(dict_couple)
         
-        participants = pd.read_csv("participants.csv")
-
         combined = pd.concat([dict_tableau_partant, dict_couple], axis=1)
         
+        # combined = combined.reindex(sorted(combined.columns), axis=1)
 
-        combined = combined.join(participants[["oeilleres"]])
-        
-        
-        if os.path.exists("data.csv"):
-            # print(combined.head())
-            combined.to_csv("data.csv", mode="a", index=True, header=False)
+
+        if not isinstance(not_saved, pd.DataFrame):
+            not_saved = combined
         else:
-            combined.to_csv("data.csv")
+            not_saved = pd.concat([not_saved, combined])
+        if os.path.isfile(file):
+            if time.time() - last_time_saved > save_time:
+
+                already_saved = pd.read_csv(file)
+                already_saved = pd.concat([already_saved, not_saved])
+                already_saved.to_csv(file, index=False)
+                last_time_saved = time.time()
+
+                del already_saved
+                del not_saved
+        else:
+            not_saved.to_csv(file, index=False)
+
+    if os.path.isfile(file):
+        already_saved = pd.read_csv(file)
+        already_saved = pd.concat([already_saved, not_saved])
+        already_saved.to_csv(file, index=False)
+    else:
+        not_saved.to_csv(file, index=False)
