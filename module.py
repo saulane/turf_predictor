@@ -250,6 +250,7 @@ def partants(course, file="data.csv", save_time=60):
             not_saved = combined
         else:
             not_saved = pd.concat([not_saved, combined])
+
         if os.path.isfile(file):
             if time.time() - last_time_saved > save_time:
 
@@ -259,7 +260,7 @@ def partants(course, file="data.csv", save_time=60):
                 last_time_saved = time.time()
 
                 del already_saved
-                del not_saved
+                not_saved = None
         else:
             not_saved.to_csv(file, index=False)
 
