@@ -5,11 +5,9 @@ import numpy as np
 import statistics as st
 import datetime
 import os
-import requests_cache
 import time
 
 
-requests_cache.install_cache('turf_cache')
 
 headers = {
     'Accept-Encoding': 'gzip, deflate, sdch',
@@ -65,10 +63,13 @@ def get_courses(reunions):
     participants_list = []
 
     for i, row in reunions.iterrows():
-        url = f"https://www.letrot.com/{row['lien']}/json"
-        date_pmu = "".join(row["date"].split("-")[::-1])    
-        r = requests.get(url, headers=headers)
-        courses = r.json()
+        try:
+            url = f"https://www.letrot.com/{row['lien']}/json"
+            date_pmu = "".join(row["date"].split("-")[::-1])    
+            r = requests.get(url, headers=headers)
+            courses = r.json()
+        except:
+            continue
         for c in courses["course"]:
             if c["discipline"] == "Attelé":
                 course_id = row["date"].replace("-", "") + str(row["idHippo"]) + str(c["numCourse"])
@@ -112,9 +113,7 @@ def info_tableau_partant(courseId, date, idHippo, numCourse, numReunion, classem
             cheval = {}
             cheval["num"] = num
             cheval["nom"] = col[1].text
-            
-            if num == "NP":
-                continue
+
             cheval["classement"] = classement[num]
             cheval["id"] = courseId
             cheval["date"] = date
@@ -235,9 +234,9 @@ def partants(course, file="data.csv", save_time=60):
         url_cheval = url + "/partants/chevaux"
         try:
             dict_tableau_partant = info_tableau_partant(course['id'],course['date'], course['idHippo'],course['numCourse'], course["numReunion"], course["classement"])
+            dict_couple = make_df_info_couple(course['id'],course['date'], course['idHippo'],course['numCourse'])
         except:
             continue
-        dict_couple = make_df_info_couple(course['id'],course['date'], course['idHippo'],course['numCourse'])
         
 #         combined = dict_tableau_partant.join(dict_couple)
         
