@@ -8,7 +8,6 @@ import os
 import time
 
 
-
 headers = {
     'Accept-Encoding': 'gzip, deflate, sdch',
     'Accept-Language': 'en-US,en;q=0.8',
@@ -26,17 +25,13 @@ def get_programme(debut, fin):
     r = requests.get(url, headers=headers)
     soup = bs(r.text, "html.parser")
     reunion_raw = soup.find_all("a", {"class": "racesHippodrome"})
-    
     current_date_reunion = "0"
     current_programme = {}
-    
     
     for i in range(len(reunion_raw)):
         reunion = reunion_raw[i]
         date = reunion.get("href").split("/")[-2]
         hippodrome = reunion.text[2:].strip().replace(" (A ", " ").replace(")", "")
-        
-        
         date_pmu = "".join(date.split("-")[::-1])
         
         if current_date_reunion != date_pmu:
