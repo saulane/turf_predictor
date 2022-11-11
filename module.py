@@ -63,12 +63,12 @@ def get_courses(reunions):
             date_pmu = "".join(row["date"].split("-")[::-1])    
             r = requests.get(url, headers=headers)
             courses = r.json()
+            for c in courses["course"]:
+                if c["discipline"] == "Attelé":
+                    course_id = row["date"].replace("-", "") + str(row["idHippo"]) + str(c["numCourse"])
+                    courses_list.append({"date": row["date"], "id": course_id, "numReunion": row["numReunion"], "hippodrome": courses["nomHippodrome"], "idHippo": row["idHippo"],**c})
         except:
             continue
-        for c in courses["course"]:
-            if c["discipline"] == "Attelé":
-                course_id = row["date"].replace("-", "") + str(row["idHippo"]) + str(c["numCourse"])
-                courses_list.append({"date": row["date"], "id": course_id, "numReunion": row["numReunion"], "hippodrome": courses["nomHippodrome"], "idHippo": row["idHippo"],**c})
     return pd.DataFrame(courses_list)
 
 
