@@ -1,6 +1,5 @@
 data
 predictions
-models
 paris
 
 *.csv

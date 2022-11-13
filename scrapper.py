@@ -18,12 +18,6 @@ if __name__ == "__main__":
 
     annee = args[1]
 
-
-    # if len(args) != 3:
-    #     raise Exception("scrapper.py 'date_debut' 'date_fin'")
-    
-
-
     try:
         for j in range(len(months)):
             debut = f"01-{months[j]}-{annee}"

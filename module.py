@@ -31,7 +31,7 @@ def get_programme(debut, fin):
     for i in range(len(reunion_raw)):
         reunion = reunion_raw[i]
         date = reunion.get("href").split("/")[-2]
-        hippodrome = reunion.text[2:].strip().replace(" (A ", " ").replace(")", "")
+        hippodrome = reunion.text[2:].strip().replace(" (A ", " ").replace(")", "").replace("LE MONT-SAINT-MICHEL-PONTORSON", "LE MONT SAINT MICHEL")
         date_pmu = "".join(date.split("-")[::-1])
         
         if current_date_reunion != date_pmu:
@@ -72,7 +72,7 @@ def get_courses(reunions):
     return pd.DataFrame(courses_list)
 
 
-def info_tableau_partant(courseId, date, idHippo, numCourse, numReunion, classement):
+def info_tableau_partant(courseId, date, idHippo, numCourse, numReunion, classement, data_type="training"):
     chevaux = []
     url = f"https://www.letrot.com/stats/fiche-course/{date}/{idHippo}/{numCourse}/partants/tableau"
     r = requests.get(url, headers=headers)
@@ -109,7 +109,10 @@ def info_tableau_partant(courseId, date, idHippo, numCourse, numReunion, classem
             cheval["num"] = num
             cheval["nom"] = col[1].text
 
-            cheval["classement"] = classement[num]
+            cheval["numCoursePMU"] = f"R{numReunion}C{numCourse}"
+
+            if data_type == "training":
+                cheval["classement"] = classement[num]
             cheval["id"] = courseId
             cheval["date"] = date
             cheval["url"] = col[1].find("a").get("href")
@@ -264,3 +267,19 @@ def partants(course, file="data.csv", save_time=60):
         already_saved.to_csv(file, index=False)
     else:
         not_saved.to_csv(file, index=False)
+
+def get_board(courses):
+    tableau = pd.DataFrame()
+    for i, course in courses.iterrows():
+        url = f"https://www.letrot.com/stats/fiche-course/{course['date']}/{course['idHippo']}/{course['numCourse']}"
+        try:
+            dict_tableau_partant = info_tableau_partant(course['id'],course['date'], course['idHippo'],course['numCourse'], course["numReunion"], course["classement"], "predictions")
+            dict_couple = make_df_info_couple(course['id'],course['date'], course['idHippo'],course['numCourse'])
+        except:
+            continue
+        
+        combined = pd.concat([dict_tableau_partant, dict_couple], axis=1)
+        
+        tableau = pd.concat([tableau, combined])
+
+    return tableau
