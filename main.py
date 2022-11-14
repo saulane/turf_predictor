@@ -1,4 +1,4 @@
-from flask import Flask, render_template, Response, abort
+from flask import Flask, Response, abort
 import pandas as pd
 import datetime
 from os.path import exists
@@ -7,11 +7,6 @@ from predictions import Predictor
 app = Flask(__name__)
 
 @app.route("/")
-def hello_world(name=None):
-    return render_template("home.html", name=name)
-
-
-@app.route("/preds")
 def predictions():
     today = datetime.date.today().strftime("%d-%m-%Y")
     path = f"../predictions/{today}.csv"
