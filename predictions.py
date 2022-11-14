@@ -42,15 +42,7 @@ class Predictor():
     def __init__(self, capital, file=None) -> None:
         self.capital = capital
         self.today_date = datetime.date.today().strftime("%d-%m-%Y")
-        if not file:
-            self.model = lgb.Booster(model_file="models/modelv1.txt")
-
-            self.board = self._get_info_horses()
-            self.save_today_data()
-        else:
-            self.preds = pd.read_csv(file)
-
-        
+        self.model = lgb.Booster(model_file="models/modelv1.txt")
 
     def predict(self):
         return self._get_predictions()
@@ -79,6 +71,7 @@ class Predictor():
         return board
 
     def _get_predictions(self):
+        self.board = self._get_info_horses()
         pred_data = self.board.loc[:][self.FEATURES].apply(pd.to_numeric, errors='coerce')
         pred_data["dernierRapportReference_indicateurTendance"] = pred_data["dernierRapportReference_indicateurTendance"].replace(["+", " ", "-"], [1, 0, -1]).fillna(0)
 
@@ -98,10 +91,6 @@ class Predictor():
 if __name__ == "__main__":
     predictions = Predictor(30)
 
-    if predictions.board.dernierRapportDirect_rapport.isna().any():
-        for i, rapport in enumerate(predictions.board.dernierRapportDirect_rapport):
-            if rapport == np.nan:
-                predictions.board.iloc[i]["dernierRapportDirect_rapport"] = float(input("Cote"))
-    predictions.save_today_data()
-    print(predictions.board.dernierRapportDirect_rapport)
+    # predictions.save_today_data()
+    print(predictions.predict())
     # print(predictions)
