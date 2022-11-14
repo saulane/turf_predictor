@@ -28,11 +28,9 @@ class Predictor():
             'nombrePlacesTroisieme',
             'handicapDistance',
             'gainsParticipant_gainsPlace',
-            "dernierRapportDirect_nombreIndicateurTendance",
             "dernierRapportReference_indicateurTendance",
             'gainsParticipant_gainsAnneeEnCours',
             'gainsParticipant_gainsAnneePrecedente',
-            'dernierRapportDirect_rapport',
             'dernierRapportReference_rapport',
             'nbCourseCouple',
             'nbVictoiresCouple',
@@ -42,7 +40,7 @@ class Predictor():
     def __init__(self, capital, file=None) -> None:
         self.capital = capital
         self.today_date = datetime.date.today().strftime("%d-%m-%Y")
-        self.model = lgb.Booster(model_file="models/modelv1.txt")
+        self.model = lgb.Booster(model_file="models/modelv2.txt")
 
     def predict(self):
         return self._get_predictions()
@@ -80,7 +78,7 @@ class Predictor():
         self.board["pred"] = self.board.groupby("id")["pred"].rank("dense",ascending=True).astype(int)
         self.board["pred"] = self.board.groupby("id")["pred"].rank("first").astype(int)
     
-        winners = self.board[["numCoursePMU","num", "nom", "pred"]].loc[self.board["pred"] == 1]
+        winners = self.board[["numCoursePMU","num", "nom", "pred", "dernierRapportReference_rapport"]].loc[self.board["pred"] == 1]
         # print(winners)
         winners.to_csv(f"predictions/{self.today_date}.csv", index=False)
         return winners
