@@ -25,3 +25,6 @@ def predictions():
             abort(404, description="Missing Data")
 
     return Response(preds_df.to_json(orient="records"), mimetype='application/json')
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0')
