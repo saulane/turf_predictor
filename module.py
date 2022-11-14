@@ -18,6 +18,8 @@ headers = {
     'Connection': 'keep-alive',
 }
 
+hippo_letrot = ["LE MONT-SAINT-MICHEL-PONTORSON", "BORDEAUX", "LE CROISE-LAROCHE"]
+hippo_pmu =  ["LE MONT SAINT MICHEL", "LE BOUSCAT", "LE CROISE LAROCHE"]
 
 def get_programme(debut, fin):
     programme = []
@@ -31,7 +33,11 @@ def get_programme(debut, fin):
     for i in range(len(reunion_raw)):
         reunion = reunion_raw[i]
         date = reunion.get("href").split("/")[-2]
-        hippodrome = reunion.text[2:].strip().replace(" (A ", " ").replace(")", "").replace("LE MONT-SAINT-MICHEL-PONTORSON", "LE MONT SAINT MICHEL")
+        hippodrome = reunion.text[2:].strip().replace(" (A ", " ").replace(")", "")
+        
+        for i in range(len(hippo_letrot)):
+            hippodrome = hippodrome.replace(hippo_letrot[i], hippo_pmu[i])
+        
         date_pmu = "".join(date.split("-")[::-1])
         
         if current_date_reunion != date_pmu:
