@@ -69,7 +69,7 @@ class Predictor():
 
     def _get_predictions(self):
         self.board = self._get_info_horses()
-        # self.board.dropna(subset=self.FEATURES, inplace=True)
+        self.board.dropna(subset=["num"], inplace=True)
         pred_data = self.board.loc[:][self.FEATURES].apply(pd.to_numeric, errors='coerce')
         # pred_data["dernierRapportReference_indicateurTendance"] = pred_data["dernierRapportReference_indicateurTendance"].replace(["+", " ", "-"], [1, 0, -1]).fillna(0)
 
