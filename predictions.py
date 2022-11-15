@@ -51,8 +51,8 @@ class Predictor():
         self.board = races
 
     def _get_today_program(self):
-        return module.get_programme("16-11-2022", "16-11-2022")
-        # return module.get_programme(self.today_date, self.today_date)
+        # return module.get_programme("16-11-2022", "16-11-2022")
+        return module.get_programme(self.today_date, self.today_date)
 
     def _get_today_races(self):
         program = self._get_today_program()
