@@ -18,8 +18,8 @@ headers = {
     'Connection': 'keep-alive',
 }
 
-hippo_letrot = ["LE MONT-SAINT-MICHEL-PONTORSON", "BORDEAUX", "LE CROISE-LAROCHE"]
-hippo_pmu =  ["LE MONT SAINT MICHEL", "LE BOUSCAT", "LE CROISE LAROCHE"]
+hippo_letrot = ["LE MONT-SAINT-MICHEL-PONTORSON", "BORDEAUX", "LE CROISE-LAROCHE", "MARSEILLE (A BORELY)"]
+hippo_pmu =  ["LE MONT SAINT MICHEL", "LE BOUSCAT", "LE CROISE LAROCHE", "BORELY"]
 
 def get_programme(debut, fin):
     programme = []
@@ -33,10 +33,13 @@ def get_programme(debut, fin):
     for i in range(len(reunion_raw)):
         reunion = reunion_raw[i]
         date = reunion.get("href").split("/")[-2]
-        hippodrome = reunion.text[2:].strip().replace(" (A ", " ").replace(")", "")
-        
+        hippodrome = reunion.text[2:].strip()
         for i in range(len(hippo_letrot)):
             hippodrome = hippodrome.replace(hippo_letrot[i], hippo_pmu[i])
+        
+        hippodrome = hippodrome.replace(" (A ", " ").replace(")", "")
+        
+        
         
         date_pmu = "".join(date.split("-")[::-1])
         
