@@ -44,7 +44,7 @@ class Predictor():
         return self._get_predictions()
 
     def save_today_data(self):
-        self.board[self.FEATURES].to_csv("today.csv")
+        self.board[self.FEATURES].to_csv("today2.csv")
 
     def load_races_data(self, file):
         races = pd.read_csv(file, index=False)
@@ -63,13 +63,12 @@ class Predictor():
         courses = self._get_today_races()
         board = module.get_board(courses)
         board["num"] = board["num"].replace("NP", np.nan)
-        board["num"].dropna(inplace=True)
+        board.dropna(subset="num", inplace=True)
         board.to_csv("test.csv")
         return board
 
     def _get_predictions(self):
         self.board = self._get_info_horses()
-        self.board.dropna(subset=["num"], inplace=True)
         pred_data = self.board.loc[:][self.FEATURES].apply(pd.to_numeric, errors='coerce')
         # pred_data["dernierRapportReference_indicateurTendance"] = pred_data["dernierRapportReference_indicateurTendance"].replace(["+", " ", "-"], [1, 0, -1]).fillna(0)
 

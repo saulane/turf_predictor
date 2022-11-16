@@ -186,12 +186,16 @@ def info_tableau_partant(courseId, date, idHippo, numCourse, numReunion, classem
 
 def make_df_info_couple(courseId, date, idHippo, numCourse):
     couple_info = []
-    date_splitted_arrive = "%2F".join(date.split("-")[::-1])
-    date_splitted_depart = date.split("-")[::-1]
-    date_splitted_depart[2] = str(int(date_splitted_depart[2]) - 1)
-    date_splitted_depart = "%2F".join(date_splitted_depart)
+
+    date_datetime = datetime.date.fromisoformat(date)
+
+    d = datetime.timedelta(days=1)
+    d2 = datetime.timedelta(days=365)
+
+    date_arrive = (date_datetime - d).strftime("%d-%m-%Y").replace("-", "%2F")
+    date_depart = (date_datetime - d2).strftime("%d-%m-%Y").replace("-", "%2F")
     
-    url = f"https://www.letrot.com/stats/fiche-course/{date}/{idHippo}/{numCourse}/partants/couples/paginate?datepicker_du={date_splitted_depart}&datepicker_au={date_splitted_arrive}"
+    url = f"https://www.letrot.com/stats/fiche-course/{date}/{idHippo}/{numCourse}/partants/couples/paginate?datepicker_du={date_depart}&datepicker_au={date_arrive}"
     r = requests.get(url, headers=headers)
     dic_json = r.json()
     data = dic_json["data"]
@@ -208,6 +212,93 @@ def make_df_info_couple(courseId, date, idHippo, numCourse):
         cheval["nonPartant"] = couple["nonPartant"]
         couple_info.append(cheval)
     return pd.DataFrame(couple_info)
+
+
+def make_df_info_tandems(courseId, date, idHippo, numCourse):
+    tandem_info = []
+
+    date_datetime = datetime.date.fromisoformat(date)
+
+    d = datetime.timedelta(days=1)
+    d2 = datetime.timedelta(days=365)
+
+    date_arrive = (date_datetime - d).strftime("%d-%m-%Y").replace("-", "%2F")
+    date_depart = (date_datetime - d2).strftime("%d-%m-%Y").replace("-", "%2F")
+    
+    url = f"https://www.letrot.com/stats/fiche-course/{date}/{idHippo}/{numCourse}/partants/tandems/paginate?datepicker_du={date_depart}&datepicker_au={date_arrive}"
+    r = requests.get(url, headers=headers)
+    dic_json = r.json()
+    data = dic_json["data"]
+
+    data_sorted = sorted(data, key=lambda x: x["numero"])
+    for tandem in data_sorted:
+        cheval = {}
+        
+        cheval["nbCourseTandem"] = bs(tandem["nbre_courses"], "html.parser").find("div").text
+        cheval["nbVictoiresTandem"] = bs(tandem["nbre_victoires"], "html.parser").find("div").text
+        cheval["nb2emeTandem"] = bs(tandem["nbre_2eme"], "html.parser").find("div").text
+        cheval["nb3emeTandem"] = bs(tandem["nbre_3eme"], "html.parser").find("div").text
+        cheval["txReussiteTandem"] = tandem["taux_reussite_sort"]
+        tandem_info.append(cheval)
+    return pd.DataFrame(tandem_info)
+
+def make_df_info_entraineur(courseId, date, idHippo, numCourse):
+    trainer_info = []
+
+    date_datetime = datetime.date.fromisoformat(date)
+
+    d = datetime.timedelta(days=1)
+    d2 = datetime.timedelta(days=365)
+
+    date_arrive = (date_datetime - d).strftime("%d-%m-%Y").replace("-", "%2F")
+    date_depart = (date_datetime - d2).strftime("%d-%m-%Y").replace("-", "%2F")
+    
+    url = f"https://www.letrot.com/stats/fiche-course/{date}/{idHippo}/{numCourse}/partants/entraineurs/paginate?datepicker_du={date_depart}&datepicker_au={date_arrive}"
+    r = requests.get(url, headers=headers)
+    dic_json = r.json()
+    data = dic_json["data"]
+
+    data_sorted = sorted(data, key=lambda x: x["numero"])
+    for trainer in data_sorted:
+        cheval = {}
+        
+        cheval["nbCourseTrainer"] = bs(trainer["nbre_courses"], "html.parser").find("div").text
+        cheval["nbVictoiresTrainer"] = bs(trainer["nbre_victoires"], "html.parser").find("div").text
+        cheval["nb2emeTrainer"] = bs(trainer["nbre_2eme"], "html.parser").find("div").text
+        cheval["nb3emeTrainer"] = bs(trainer["nbre_3eme"], "html.parser").find("div").text
+        cheval["txReussiteTrainer"] = trainer["taux_reussite_sort"]
+        trainer_info.append(cheval)
+    return pd.DataFrame(trainer_info)
+
+def make_df_info_driver(courseId, date, idHippo, numCourse):
+    driver_info = []
+
+    date_datetime = datetime.date.fromisoformat(date)
+
+    d = datetime.timedelta(days=1)
+    d2 = datetime.timedelta(days=365)
+
+    date_arrive = (date_datetime - d).strftime("%d-%m-%Y").replace("-", "%2F")
+    date_depart = (date_datetime - d2).strftime("%d-%m-%Y").replace("-", "%2F")
+    
+    url = f"https://www.letrot.com/stats/fiche-course/{date}/{idHippo}/{numCourse}/partants/drivers/paginate?datepicker_du={date_depart}&datepicker_au={date_arrive}"
+    r = requests.get(url, headers=headers)
+    dic_json = r.json()
+    data = dic_json["data"]
+
+    data_sorted = sorted(data, key=lambda x: x["numero"])
+    for driver in data_sorted:
+        cheval = {}
+        
+        cheval["nbCourseDriver"] = bs(driver["nbre_courses"], "html.parser").find("div").text
+        cheval["nbVictoiresDriver"] = bs(driver["nbre_victoires"], "html.parser").find("div").text
+        cheval["nb2emeDriver"] = bs(driver["nbre_2eme"], "html.parser").find("div").text
+        cheval["nb3emeDriver"] = bs(driver["nbre_3eme"], "html.parser").find("div").text
+        cheval["txReussiteDriver"] = driver["taux_reussite_sort"]
+        driver_info.append(cheval)
+    return pd.DataFrame(driver_info)
+
+
 
 
 def get_info_cheval(url, date):
@@ -242,12 +333,15 @@ def partants(course, file="data.csv", save_time=60):
         try:
             dict_tableau_partant = info_tableau_partant(course['id'],course['date'], course['idHippo'],course['numCourse'], course["numReunion"], course["classement"])
             dict_couple = make_df_info_couple(course['id'],course['date'], course['idHippo'],course['numCourse'])
+            dict_trainer = make_df_info_entraineur(course['id'],course['date'], course['idHippo'],course['numCourse'])
+            dict_tandem = make_df_info_tandems(course['id'],course['date'], course['idHippo'],course['numCourse'])
+            dict_driver = make_df_info_driver(course['id'],course['date'], course['idHippo'],course['numCourse'])
         except:
             continue
         
 #         combined = dict_tableau_partant.join(dict_couple)
         
-        combined = pd.concat([dict_tableau_partant, dict_couple], axis=1)
+        combined = pd.concat([dict_tableau_partant, dict_couple, dict_trainer, dict_tandem, dict_driver], axis=1)
         
         # combined = combined.reindex(sorted(combined.columns), axis=1)
 
