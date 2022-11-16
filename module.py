@@ -150,10 +150,14 @@ def info_tableau_partant(courseId, date, idHippo, numCourse, numReunion, classem
 
             cheval["music"] = list(map(int, cheval["music"]))
             
+            cheval["nbDiscalifieMusic"] = cheval["music"].count(0)
+            cheval["nbVictoireMusic"] = cheval["music"].count(1)
+            cheval["nbPlaceMusic"] = sum(map(lambda x : x <=3 and x > 0,cheval["music"]))
+
             if len(cheval["music"]) < 4:
                 raise ValueError("not enough data")
             
-            cheval["nbArrivé"] = len(cheval["music"]) - cheval["music"].count("0")
+            cheval["nbArrivé"] = len(cheval["music"]) - cheval["music"].count(0)
             cheval["lastPerf"] = cheval["music"][0] if cheval["nbArrivé"] else 0
 
             arriveOnly = list(filter(None, cheval["music"]))
@@ -310,9 +314,32 @@ def get_info_cheval(url, date):
 
     for c in jsoned:
         c["dateCourse"] = datetime.date.fromisoformat(c["dateCourseRaw"])
+        c["categorie"] = bs(c["categorie"], "html.parser").find("span").text
+        reduction = bs(c["reduction"], "html.parser").span.text
+        reduction = reduction.replace("'", "").replace('\"', "")
+
+        reduction_min = int(str(reduction)[0])
+        reduction_sec = int(str(reduction)[1:3])
+        reduction_ssec = int(str(reduction)[3])
+
+        c["reduction"] = reduction_min*60*10 + reduction_sec*10 + reduction_ssec
+
+        # c["recordAbs"] = list(map(int, reduction.text.replace(reduction.span.text, "").replace("\'", '"').split('"')))
+        # c["recordAbs"] = c["recordAbs"][0] * 10 * 60 + c["recordAbs"][1] * 10 + c["recordAbs"][2]
     
     filtered = list(filter(lambda x: x["dateCourse"] < date_debut and x["specialite"] == "A", jsoned))
     
+    filtered_tps = list(filter(lambda x: x["reduction"] < 1200, filtered))
+
+    tps = [x["reduction"] for x in filtered_tps]
+
+    info_dict["meanReduction"] = np.mean(tps)
+    info_dict["medianReduction"] = np.median(tps)
+    info_dict["maxReduction"] = max(tps)
+    info_dict["minReduction"] = min(tps)
+
+    info_dict["timeSinceRecord"] = next(((date_debut - item["dateCourse"]).days for item in filtered_tps if item["reduction"] == info_dict["minReduction"]), 365)
+
     info_dict["tpsLastRace"] = (date_debut - filtered[0]["dateCourse"]).days
     
     info_dict["last_race_dist"] = int(filtered[0]["distance"].replace(" ", ""))
@@ -336,7 +363,7 @@ def partants(course, file="data.csv", save_time=60):
             dict_trainer = make_df_info_entraineur(course['id'],course['date'], course['idHippo'],course['numCourse'])
             dict_tandem = make_df_info_tandems(course['id'],course['date'], course['idHippo'],course['numCourse'])
             dict_driver = make_df_info_driver(course['id'],course['date'], course['idHippo'],course['numCourse'])
-        except:
+        except Exception:
             continue
         
 #         combined = dict_tableau_partant.join(dict_couple)
@@ -378,10 +405,13 @@ def get_board(courses):
         try:
             dict_tableau_partant = info_tableau_partant(course['id'],course['date'], course['idHippo'],course['numCourse'], course["numReunion"], course["classement"], "predictions")
             dict_couple = make_df_info_couple(course['id'],course['date'], course['idHippo'],course['numCourse'])
+            dict_trainer = make_df_info_entraineur(course['id'],course['date'], course['idHippo'],course['numCourse'])
+            dict_tandem = make_df_info_tandems(course['id'],course['date'], course['idHippo'],course['numCourse'])
+            dict_driver = make_df_info_driver(course['id'],course['date'], course['idHippo'],course['numCourse'])
         except:
             continue
         
-        combined = pd.concat([dict_tableau_partant, dict_couple], axis=1)
+        combined = pd.concat([dict_tableau_partant, dict_couple, dict_trainer, dict_tandem, dict_driver], axis=1)
         
         tableau = pd.concat([tableau, combined])
 

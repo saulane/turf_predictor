@@ -7,38 +7,58 @@ import numpy as np
 
 class Predictor():
     FEATURES = ['num',
-            'tpsLastRace',
-            'last_race_dist',
-            'fer',
-            'firstTimeFer',
-            'sex',
-            'age_x',
-            'dist',
-            'avisTrainer',
-            'lastPerf',
-            'meanPerf',
-            'medianPerf',
-            'modePerf',
-            'recordAbs',
-            'gain',
-            'nombreCourses',
-            'nombreVictoires',
-            'nombrePlaces',
-            'nombrePlacesSecond',
-            'nombrePlacesTroisieme',
-            'handicapDistance',
-            'gainsParticipant_gainsPlace',
-            'gainsParticipant_gainsAnneeEnCours',
-            'gainsParticipant_gainsAnneePrecedente',
-            'nbCourseCouple',
-            'nbVictoiresCouple',
-            'nb2emeCouple',
-            'nb3emeCouple',
-            'txReussiteCouple']
+    'tpsLastRace',
+    'last_race_dist',
+    'fer',
+    'firstTimeFer',
+    'sex',
+    'age_x',
+    'dist',
+    'avisTrainer',
+    'lastPerf',
+    'meanPerf',
+    'medianPerf',
+    'modePerf',
+    'recordAbs',
+    'gain',
+    'nbDiscalifieMusic',
+    'nbVictoireMusic',
+    'nbPlaceMusic',
+    'nbArrivé',
+    'nombreCourses',
+    'nombreVictoires',
+    'nombrePlaces',
+    'nombrePlacesSecond',
+    'nombrePlacesTroisieme',
+    'gainsParticipant_gainsPlace',
+    'gainsParticipant_gainsAnneeEnCours',
+    'gainsParticipant_gainsAnneePrecedente',
+    'nbCourseCouple',
+    'nbVictoiresCouple',
+    'nb2emeCouple',
+    'nb3emeCouple',
+    'txReussiteCouple',
+    'dernierRapportReference_rapport',
+    "dernierRapportReference_indicateurTendance",
+            'nbCourseTrainer',
+ 'nbVictoiresTrainer',
+ 'nb2emeTrainer',
+ 'nb3emeTrainer',
+ 'txReussiteTrainer',
+ 'nbCourseTandem',
+ 'nbVictoiresTandem',
+ 'nb2emeTandem',
+ 'nb3emeTandem',
+ 'txReussiteTandem',
+ 'nbCourseDriver',
+ 'nbVictoiresDriver',
+ 'nb2emeDriver',
+ 'nb3emeDriver',
+ 'txReussiteDriver']
     def __init__(self, capital, file=None) -> None:
         self.capital = capital
         self.today_date = datetime.date.today().strftime("%d-%m-%Y")
-        self.model = lgb.Booster(model_file="models/modelv3.txt")
+        self.model = lgb.Booster(model_file="models/modelv4.txt")
 
     def predict(self):
         return self._get_predictions()
@@ -63,12 +83,14 @@ class Predictor():
         courses = self._get_today_races()
         board = module.get_board(courses)
         board["num"] = board["num"].replace("NP", np.nan)
+        
         board.dropna(subset="num", inplace=True)
         board.to_csv("test.csv")
         return board
 
     def _get_predictions(self):
         self.board = self._get_info_horses()
+        
         pred_data = self.board.loc[:][self.FEATURES].apply(pd.to_numeric, errors='coerce')
         # pred_data["dernierRapportReference_indicateurTendance"] = pred_data["dernierRapportReference_indicateurTendance"].replace(["+", " ", "-"], [1, 0, -1]).fillna(0)
 
