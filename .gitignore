@@ -2,6 +2,8 @@ data
 predictions
 paris
 
+R
+
 *.csv
 *.sqlite
 *.log
