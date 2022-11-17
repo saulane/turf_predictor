@@ -99,7 +99,7 @@ class Predictor():
         self.board["pred"] = self.board.groupby("id")["pred"].rank("dense",ascending=True).astype(int)
         self.board["pred"] = self.board.groupby("id")["pred"].rank("first").astype(int)
     
-        winners = self.board[["numCoursePMU","num", "nom", "pred"]].loc[self.board["pred"] == 1]
+        winners = self.board[["numCoursePMU","num", "nom", "pred"]].loc[self.board["pred"] <= 5]
         # print(winners)
         winners.to_csv(f"predictions/{self.today_date}.csv", index=False)
         return winners

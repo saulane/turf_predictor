@@ -1,0 +1,3 @@
+mlp regression
+combiner prediction cote et ranking
+ranking meilleures features
