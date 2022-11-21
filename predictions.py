@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 
 class Predictor():
-    FEATURES = ['num',
+    FEATURES_back = ['num',
     'tpsLastRace',
     'last_race_dist',
     'fer',
@@ -55,10 +55,14 @@ class Predictor():
  'nb2emeDriver',
  'nb3emeDriver',
  'txReussiteDriver']
+
+
+    FEATURES = ['num', 'tpsLastRace', 'last_race_dist', 'fer', 'firstTimeFer', 'sex', 'age_x', 'dist', 'avisTrainer', 'nbArrivé', 'lastPerf', 'meanPerf', 'medianPerf', 'modePerf', 'recordAbs', 'gain', 'nombreCourses', 'nombreVictoires', 'nombrePlaces', 'nombrePlacesSecond', 'nombrePlacesTroisieme', 'jumentPleine', 'handicapDistance', 'gainsParticipant_gainsVictoires', 'gainsParticipant_gainsPlace', 'gainsParticipant_gainsAnneeEnCours', 'gainsParticipant_gainsAnneePrecedente', 'dernierRapportDirect_rapport', 'dernierRapportReference_rapport', 'nbCourseCouple', 'nbVictoiresCouple', 'nb2emeCouple', 'nb3emeCouple', 'txReussiteCouple', 'nonPartant']
+
     def __init__(self, capital, file=None) -> None:
         self.capital = capital
         self.today_date = datetime.date.today().strftime("%d-%m-%Y")
-        self.model = lgb.Booster(model_file="models/modelv4.txt")
+        self.model = lgb.Booster(model_file="models/lightgbm_model_v0.1.txt")
 
     def predict(self):
         return self._get_predictions()
@@ -99,7 +103,7 @@ class Predictor():
         self.board["pred"] = self.board.groupby("id")["pred"].rank("dense",ascending=True).astype(int)
         self.board["pred"] = self.board.groupby("id")["pred"].rank("first").astype(int)
     
-        winners = self.board[["numCoursePMU","num", "nom", "pred"]].loc[self.board["pred"] <= 5]
+        winners = self.board[["numCoursePMU","num", "nom", "pred"]].loc[self.board["pred"] <= 2]
         # print(winners)
         winners.to_csv(f"predictions/{self.today_date}.csv", index=False)
         return winners
