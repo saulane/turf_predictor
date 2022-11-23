@@ -6,7 +6,7 @@ import statistics as st
 import datetime
 import os
 import time
-
+import concurrent
 
 headers = {
     'Accept-Encoding': 'gzip, deflate, sdch',
@@ -21,45 +21,46 @@ headers = {
 hippo_letrot = ["LE MONT-SAINT-MICHEL-PONTORSON", "BORDEAUX", "LE CROISE-LAROCHE", "MARSEILLE (A BORELY)"]
 hippo_pmu =  ["LE MONT SAINT MICHEL", "LE BOUSCAT", "LE CROISE LAROCHE", "BORELY"]
 
-def get_programme(debut, fin):
-    programme = []
-    url = f"https://www.letrot.com/fr/courses/calendrier-resultats?publish_up={debut}&publish_down={fin}"
-    r = requests.get(url, headers=headers)
-    soup = bs(r.text, "html.parser")
-    reunion_raw = soup.find_all("a", {"class": "racesHippodrome"})
-    current_date_reunion = "0"
-    current_programme = {}
-    
-    for i in range(len(reunion_raw)):
-        reunion = reunion_raw[i]
-        date = reunion.get("href").split("/")[-2]
-        hippodrome = reunion.text[2:].strip()
-        for i in range(len(hippo_letrot)):
-            hippodrome = hippodrome.replace(hippo_letrot[i], hippo_pmu[i])
+class Programme():
+    def __init__(self, debut, fin) -> None:
+        self.programme = self._get_programme_from_letrot(debut, fin)
+
+    def _get_programme_from_letrot(self, debut, fin):
+        programme = []
+        url = f"https://www.letrot.com/fr/courses/calendrier-resultats?publish_up={debut}&publish_down={fin}"
+        r = requests.get(url, headers=headers)
+        soup = bs(r.text, "html.parser")
+        reunion_raw = soup.find_all("a", {"class": "racesHippodrome"})
+        current_date_reunion = "0"
+        current_programme = {}
         
-        hippodrome = hippodrome.replace(" (A ", " ").replace(")", "")
+        for i in range(len(reunion_raw)):
+            reunion = reunion_raw[i]
+            date = reunion.get("href").split("/")[-2]
+            hippodrome = reunion.text[2:].strip()
+            for i in range(len(hippo_letrot)):
+                hippodrome = hippodrome.replace(hippo_letrot[i], hippo_pmu[i])
+            
+            hippodrome = hippodrome.replace(" (A ", " ").replace(")", "")
+            date_pmu = "".join(date.split("-")[::-1])
+            
+            if current_date_reunion != date_pmu:
+                current_date_reunion = date_pmu
+                current_programme = requests.get(f"https://online.turfinfo.api.pmu.fr/rest/client/65/programme/{date_pmu}/", headers=headers).json()
+            numReunion = 0
+    #         print(hippodrome)
+            for reunion_pmu in current_programme["programme"]["reunions"]:
+                if hippodrome in reunion_pmu["hippodrome"]["libelleCourt"]:
+                    numReunion = reunion_pmu["numOfficiel"]
+                    break
+            
+            if numReunion == 0:
+                continue
+            course = {"date": date, "idHippo": reunion.get("href").split("/")[-1], "Hippodrome": hippodrome, "lien": reunion.get("href")}
+            course["numReunion"] = numReunion
+            programme.append(course)
         
-        
-        
-        date_pmu = "".join(date.split("-")[::-1])
-        
-        if current_date_reunion != date_pmu:
-            current_date_reunion = date_pmu
-            current_programme = requests.get(f"https://online.turfinfo.api.pmu.fr/rest/client/65/programme/{date_pmu}/", headers=headers).json()
-        numReunion = 0
-#         print(hippodrome)
-        for reunion_pmu in current_programme["programme"]["reunions"]:
-            if hippodrome in reunion_pmu["hippodrome"]["libelleCourt"]:
-                numReunion = reunion_pmu["numOfficiel"]
-                break
-        
-        if numReunion == 0:
-            continue
-        course = {"date": date, "idHippo": reunion.get("href").split("/")[-1], "Hippodrome": hippodrome, "lien": reunion.get("href")}
-        course["numReunion"] = numReunion
-        programme.append(course)
-    
-    return pd.DataFrame(programme)
+        return pd.DataFrame(programme)
 
 
 def get_courses(reunions):
