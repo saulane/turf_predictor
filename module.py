@@ -617,10 +617,12 @@ class Predicion():
         self.X.to_csv("test.csv")
 
     def predict(self):
-        features = ['acceleration_500m','nbVictoiresCouple','nbCourseCouple','rentree','last_race_dist',
-                    'tpsLastRace','timeSinceRecord','minReduction','medianReduction','meanReduction','changementCategorie',
-                    'distToPreferedDist','prefered_dist','jockeyHabitude','nbDiscalifieMusic','nbVictoireMusic','nbPlaceMusic','fer',
-                    'gainsParticipant_gainsCarriere']
+        features = ['acceleration_500m','nbVictoiresCouple','nbCourseCouple','rentree','last_race_dist','tpsLastRace','timeSinceRecord',
+                    'minReduction','medianReduction','meanReduction','changementCategorie','distToPreferedDist','prefered_dist','jockeyHabitude',
+                    'nbDiscalifieMusic','nbVictoireMusic','nbPlaceMusic',
+                    'fer','gainsParticipant_gainsCarriere','sex','age','dist', 'firstTimeFer',
+                    'formePlace','formeVictoire','lastPerf','mean_dist_arrivee','nbVictoiresHippo','nombreCourses','nbCourseHippo',
+                    'txVictoireCouple','txVictoireHippo']
 
         for f in features:
             if f not in list(self.X):

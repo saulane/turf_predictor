@@ -26,9 +26,9 @@ if __name__ == "__main__":
 
     courses["heureCourse"] = pd.to_datetime(today + " " +courses["heureCourse"], format='%Y-%m-%d %H:%M')
     if len(args) > 1 and args[1] == "next":
-        tableau_partant = module.get_df_partants(courses[courses["heureCourse"] > datetime.datetime.now() - datetime.timedelta(minutes=5)].iloc[:1])
+        tableau_partant = module.get_df_partants(courses[courses["heureCourse"] > (datetime.datetime.now() - datetime.timedelta(minutes=15))].iloc[:1])
     else:
-        tableau_partant = module.get_df_partants(courses[courses["heureCourse"] > datetime.datetime.now()])
+        tableau_partant = module.get_df_partants(courses[courses["heureCourse"] > (datetime.datetime.now() - datetime.timedelta(minutes=15))])
     pred = module.Predicion(tableau_partant)
     choice,proba = pred.predict()
 
