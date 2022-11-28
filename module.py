@@ -630,12 +630,12 @@ class Predicion():
 
         self.X["rank_pred"] = self.model_ranker.predict(self.X[features])
 
-        choice_estimate, proba_estimate = self.model1.predict(X=self.X[features], varnames=features, ids=self.X["id"], alts=self.X["num"], avail=self.X["available"],return_proba=True)         
-        self.X["proba_1"] = proba_estimate.flatten()
-        self.X["proba_1"].replace(-np.inf,0, inplace=True)
-        self.X["proba_1"].fillna(0, inplace=True)
+        # choice_estimate, proba_estimate = self.model1.predict(X=self.X[features], varnames=features, ids=self.X["id"], alts=self.X["num"], avail=self.X["available"],return_proba=True)         
+        # self.X["proba_1"] = proba_estimate.flatten()
+        # self.X["proba_1"].replace(-np.inf,0, inplace=True)
+        # self.X["proba_1"].fillna(0, inplace=True)
 
-        choice, proba = self.model2.predict(X=self.X[["proba_1", "publicProbaOfWinning","rank_pred"]],varnames=["proba_1", "publicProbaOfWinning","rank_pred"], ids=self.X["id"],alts=self.X["num"],avail=self.X["available"], return_proba=True)
+        choice, proba = self.model2.predict(X=self.X[["publicProbaOfWinning","rank_pred"]],varnames=["publicProbaOfWinning","rank_pred"], ids=self.X["id"],alts=self.X["num"],avail=self.X["available"], return_proba=True)
 
         return choice,proba
 
