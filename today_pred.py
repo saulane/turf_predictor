@@ -25,8 +25,11 @@ if __name__ == "__main__":
     today = datetime.date.today().strftime("%Y-%m-%d")
 
     courses["heureCourse"] = pd.to_datetime(today + " " +courses["heureCourse"], format='%Y-%m-%d %H:%M')
-    if len(args) > 1 and args[1] == "next":
-        tableau_partant = module.get_df_partants(courses[courses["heureCourse"] > (datetime.datetime.now() - datetime.timedelta(minutes=15))])
+    if len(args) > 1:
+        if args[1] == "next":
+            tableau_partant = module.get_df_partants(courses[courses["heureCourse"] > (datetime.datetime.now() - datetime.timedelta(minutes=15))])
+        elif args[1] == "one":
+            tableau_partant = module.get_df_partants(courses[courses["heureCourse"] > (datetime.datetime.now() - datetime.timedelta(minutes=15))].iloc[:2])
     else:
         tableau_partant = module.get_df_partants(courses)
     pred = module.Predicion(tableau_partant)
@@ -50,4 +53,4 @@ if __name__ == "__main__":
 
         deuxquatres = [sorted_proba[i,-1] +1, sorted_proba[i,-2] +1]
 
-        print(cheval["heureCourse"],numcourses[i],cheval["nom"], choice[i],"|",round(expe_pos,2), expe_pos > 1 and np.max(proba[i]) > 0.1, " | 2sur4:", deuxquatres)
+        print(cheval["heureCourse"],numcourses[i],cheval["nom"], choice[i],"|",round(expe_pos,2), expe_pos > 1.3)
