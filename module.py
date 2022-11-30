@@ -594,6 +594,7 @@ class Predicion():
         self.X["lifepercwin"] = self.X["nombreVictoires"] / self.X["nombreCourses"]
         self.X["winPrace"] = self.X["gainsParticipant_gainsCarriere"] / self.X["nombreCourses"]
         self.X["available"] = 1
+        self.X.loc[self.X["statut"] == "NON_PARTANT", "available"] = 0
 
         self.X["publicProbaOfWinning"] = 1 / self.X["dernierRapportDirect_rapport"]
         self.X.fillna(0, inplace=True)

@@ -41,16 +41,19 @@ if __name__ == "__main__":
     num = tableau_partant["num"].to_numpy()
 
     for i in range(len(choice)):
-        numcourses = tableau_partant["numCoursePMU"].unique()
+        try:
+            numcourses = tableau_partant["numCoursePMU"].unique()
 
-        cur_course = tableau_partant[tableau_partant["numCoursePMU"] == numcourses[i]]
-        # print(cur_course)
-        cheval = cur_course[cur_course["num"] == str(choice[i])].iloc[0]
-        # print(cheval)
-        # print(np.argsort(proba[i]))
+            cur_course = tableau_partant[tableau_partant["numCoursePMU"] == numcourses[i]]
+            # print(cur_course)
+            cheval = cur_course[cur_course["num"] == str(choice[i])].iloc[0]
+            # print(cheval)
+            # print(np.argsort(proba[i]))
 
-        expe_pos = np.max(proba[i]) * cheval["dernierRapportDirect_rapport"]
+            expe_pos = np.max(proba[i]) * cheval["dernierRapportDirect_rapport"]
 
-        deuxquatres = [sorted_proba[i,-1] +1, sorted_proba[i,-2] +1]
+            deuxquatres = [sorted_proba[i,-1] +1, sorted_proba[i,-2] +1]
 
-        print(cheval["heureCourse"],numcourses[i],cheval["nom"], choice[i],"|",round(expe_pos,2), expe_pos > 1.3)
+            print(cheval["heureCourse"],numcourses[i],cheval["nom"], choice[i],"|",round(expe_pos,2), expe_pos > 1.3)
+        except:
+            continue
