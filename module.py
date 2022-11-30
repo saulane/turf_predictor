@@ -628,7 +628,7 @@ class Predicion():
             if f not in list(self.X):
                 self.X[f] = 0
 
-        self.X["rank_pred"] = self.model_ranker.predict(self.X[features])
+        self.X["rank_pred"] = self.model_ranker.predict(self.X[self.model_ranker.feature_name_])
 
         # choice_estimate, proba_estimate = self.model1.predict(X=self.X[features], varnames=features, ids=self.X["id"], alts=self.X["num"], avail=self.X["available"],return_proba=True)         
         # self.X["proba_1"] = proba_estimate.flatten()
