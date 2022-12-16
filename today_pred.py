@@ -52,8 +52,12 @@ if __name__ == "__main__":
 
             expe_pos = np.max(proba[i]) * cheval["dernierRapportDirect_rapport"]
 
-            deuxquatres = [sorted_proba[i,-1] +1, sorted_proba[i,-2] +1]
+            place = [sorted_proba[i,-1] +1, sorted_proba[i,-2] +1, sorted_proba[i,-3] +1]
 
-            print(cheval["heureCourse"],numcourses[i],cheval["nom"], choice[i],"|",round(expe_pos,2), expe_pos > 1.3)
+            c = sorted_proba[i,-1]
+
+            should_bet = proba[i, c] > 0.3 and expe_pos > 1.3 and expe_pos < 4
+
+            print(cheval["heureCourse"],numcourses[i],"=>",cheval["nom"], c+1,"|",round(proba[i, c], 3), should_bet, place)
         except:
             continue
