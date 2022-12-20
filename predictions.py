@@ -1,4 +1,4 @@
-import module
+import src.module as module
 import time
 import datetime
 import lightgbm as lgb

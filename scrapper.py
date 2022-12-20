@@ -5,7 +5,7 @@ import sys
 import pandas as pd
 from bs4 import BeautifulSoup as bs
 import logging
-import module
+import src.module as module
 import concurrent.futures
 
 logging.basicConfig(filename="log.log", level=logging.ERROR, format="%(asctime)s %(levelname)s %(name)s %(message)s")

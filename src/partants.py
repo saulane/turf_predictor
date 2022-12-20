@@ -1,26 +1,16 @@
 import pandas as pd
 from bs4 import BeautifulSoup as bs
-import requests
+
 import numpy as np
 import statistics as st
 import datetime
-import os
-import time
-import concurrent
 from threading import Thread,local
-import requests
-from requests.sessions import Session
+
 import asyncio
 import aiohttp
 from scipy import stats
-from sklearn.preprocessing import RobustScaler, MinMaxScaler,StandardScaler
+from sklearn.preprocessing import RobustScaler, MinMaxScaler,StandardScaler,binarize
 from sklearn.linear_model import LinearRegression
-
-import pickle
-import xlogit
-
-import lightgbm
-
 
 headers = {
     'Accept-Encoding': 'gzip, deflate, sdch',
@@ -31,158 +21,15 @@ headers = {
     'Cache-Control': 'max-age=0',
     'Connection': 'keep-alive',
 }
-
-hippo_letrot = ["LE MONT-SAINT-MICHEL-PONTORSON", "BORDEAUX", "LE CROISE-LAROCHE", "MARSEILLE (A BORELY)"]
-hippo_pmu =  ["LE MONT SAINT MICHEL", "LE BOUSCAT", "LE CROISE LAROCHE", "BORELY"]
-
-import nest_asyncio
-nest_asyncio.apply()
-
-thread_local = local()
-
-def get_session() -> Session:
-    if not hasattr(thread_local, 'session'):
-        thread_local.session =  requests.Session()
-    return thread_local.session
-
-def get_request_with_session(url:str):
-    session = get_session()
-    with session.get(url, headers=headers) as response:
-        return response
-
-def gen_rows(df):
-    for row in df.itertuples(index=False):
-        yield row._asdict()
-
 class DataError(ValueError): pass
+class PMUError(ValueError): pass
 
-
-class Programme():
-    def __init__(self, debut, fin):
-        self.date_debut = datetime.date.fromisoformat("-".join(debut.split("-")[::-1]))
-        self.date_fin = datetime.date.fromisoformat("-".join(fin.split("-")[::-1]))
-        
-        n_days = self.date_fin - self.date_debut
-        cur = max(self.date_fin - datetime.timedelta(days=90), self.date_debut)
-        
-        intervalle_date = [self.date_fin, cur]
-        
-        while cur > self.date_debut:
-            cur = max(self.date_debut, cur - datetime.timedelta(days=90))
-            
-            intervalle_date.append(cur)        
-        self.intervalles = [(i,j + datetime.timedelta(days=1)) for i,j in zip(intervalle_date, intervalle_date[1:])]
-        
-        loop = asyncio.get_event_loop()
-        programme = loop.run_until_complete(asyncio.gather(*[self._get_programme_from_letrot(inter) for inter in self.intervalles]))
-        
-        programme = [item for sublist in programme for item in sublist]
-        
-        self.programme = pd.DataFrame(programme)
-
-    async def combined_prog(self):
-        return await asyncio.gather(*[self._get_programme_from_letrot(inter) for inter in self.intervalles])
-
-
-    async def _get_pmu_program(self, session, date):
-        date_pmu = date.strftime("%d%m%Y")
-        async with session.get(f"https://online.turfinfo.api.pmu.fr/rest/client/65/programme/{date_pmu}/") as res:
-            try:
-                return await res.json()
-            except:
-                return None
-
-    async def _get_programme_from_letrot(self, date):
-        
-        debut = date[1].strftime("%d-%m-%Y")
-        fin = date[0].strftime("%d-%m-%Y")
-#         print(debut)
-        programme = []
-        
-        url = f"https://www.letrot.com/fr/courses/calendrier-resultats?publish_up={debut}&publish_down={fin}"
-        r = get_request_with_session(url)
-        soup = bs(r.text, "html.parser")
-        reunion_raw = soup.find_all("a", {"class": "racesHippodrome"})
-        current_date_reunion = "0"
-        current_programme = {}
-        
-        num_days = (date[0] - date[1]).days + 1
-        date_list = [date[0] - datetime.timedelta(days=x) for x in range(num_days)]
-        prog_pmu = {}
-        
-        tasks = []
-        async with aiohttp.ClientSession() as session:
-            for d in date_list:
-                tasks.append(self._get_pmu_program(session, d))
-            res_prog_pmu = await asyncio.gather(*tasks)    
-        for i in range(len(res_prog_pmu)):
-            prog_pmu.update({date_list[i].strftime("%Y-%m-%d"): res_prog_pmu[i]})
-
-        
-        
-        for i in range(len(reunion_raw)):
-            reunion = reunion_raw[i]
-            date = reunion.get("href").split("/")[-2]
-            hippodrome = reunion.text[2:].strip()
-            for i in range(len(hippo_letrot)):
-                hippodrome = hippodrome.replace(hippo_letrot[i], hippo_pmu[i])
-            
-            hippodrome = hippodrome.replace(" (A ", " ").replace(")", "")
-            date_pmu = "".join(date.split("-")[::-1])
-            
-            if date in prog_pmu:
-                current_programme = prog_pmu[date]
-            else:
-                continue
-                
-            numReunion = 0
-            for reunion_pmu in current_programme["programme"]["reunions"]:
-                if hippodrome in reunion_pmu["hippodrome"]["libelleCourt"]:
-                    numReunion = reunion_pmu["numOfficiel"]
-                    break
-            
-            if numReunion == 0:
-                continue
-            course = {"date": date, "idHippo": reunion.get("href").split("/")[-1], "Hippodrome": hippodrome, "lien": reunion.get("href")}
-            course["numReunion"] = numReunion
-            programme.append(course)
-        return programme
-
-
-class Courses():
-    def __init__(self, programme: Programme) -> None:
-        self.programme = programme.programme
-        self.courses = self._get_all_course_in_programme()
-
-    def _get_all_course_in_programme(self):
-        courses = []  
-
-        def _request_race(row):
-            courses_list = []
-            try:
-                url = f"https://www.letrot.com/{row['lien']}/json"
-                date_pmu = "".join(row["date"].split("-")[::-1])    
-                r = requests.get(url, headers=headers)
-                courses = r.json()
-                for c in courses["course"]:
-                    if c["discipline"] == "Attelé":
-                        course_id = row["date"].replace("-", "") + str(row["idHippo"]) + str(c["numCourse"])
-                        courses_list.append({"date": row["date"], "id": course_id, "numReunion": row["numReunion"], "hippodrome": courses["nomHippodrome"], "idHippo": row["idHippo"],**c})
-                return courses_list
-            except:
-                pass
-            
-        def gen_rows(df):
-            for row in df.itertuples(index=False):
-                yield row._asdict()
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
-            res = executor.map(_request_race, gen_rows(self.programme))
-            
-            for i in res:
-                courses.extend(i)
-            
-        return pd.DataFrame(courses)
+# Stop the loop concurrently           
+@asyncio.coroutine                                       
+def exit():                                              
+    loop = asyncio.get_event_loop()                      
+    print("Stop")                                        
+    loop.stop()    
 
 class Partants():
     def __init__(self, course, training=False):
@@ -219,15 +66,20 @@ class Partants():
                     'nbVictoiresHippo',
                     'nb2emeHippo',
                     'nb3emeHippo',
-                    'txReussiteHippo']
+                    'txReussiteHippo',
+                    "mean_reduc_driver",
+                    "prefered_dist_driver"]
         
         self.course = course
         self.courseId = course["id"]
-        self.heure = course["heureCourse"]
         self.date = course["date"]
         self.idHippo = course["idHippo"]
         self.numCourse = course["numCourse"]
         self.numReunion = course["numReunion"]
+        self.heure = course["heureCourse"]
+        self.r_tab_partant = None
+        self.r_tab_arrivee = None
+        self.r_partant_pmu = None
         
         
         self.distance = int(course["distance"].replace(" ", ""))
@@ -238,62 +90,86 @@ class Partants():
         
         scaler = StandardScaler()
         
+        
+        
         try:
-            self.info_partants = self._info_tableau_partant()
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            programme = loop.run_until_complete(self._info_tableau_partant())
+        
+        
+#             self.info_partants = self._info_tableau_partant()
             df = pd.DataFrame(self.info_partants)
-            df["heureCourse"] = self.heure
             df.loc[:, df.columns.isin(to_scale)] = scaler.fit_transform(df.loc[:, df.columns.isin(to_scale)].to_numpy())
-            df.sort_values(by="heureCourse", inplace=True)
-            self.info_partants = df.to_dict('records')
             
+            self.info_partants = df.to_dict('records')
         except:
             self.info_partants = None
         
         
-    def _request_tableau_partants(self):
-        r = get_request_with_session(f"https://www.letrot.com/stats/fiche-course/{self.date}/{self.idHippo}/{self.numCourse}/partants/tableau")
-        soup = bs(r.text, "html.parser")
+    async def _request_tableau_partants(self, session):
+        async with session.get(f"https://www.letrot.com/stats/fiche-course/{self.date}/{self.idHippo}/{self.numCourse}/partants/tableau", headers=headers) as response:
+             r = await response.text()
+        soup = bs(r, "html.parser")
         headers_table = soup.find("table", {"id": "result_table"}).find("thead").find("tr").find_all("th")
         table = soup.find("table", {"id": "result_table"}).find("tbody")
         rows = table.find_all("tr")
-        return rows, headers_table
+        self.r_tab_partant = rows, headers_table
     
-    def _request_tableau_arrive(self):
-        r = get_request_with_session(f"https://www.letrot.com/stats/fiche-course/{self.date}/{self.idHippo}/{self.numCourse}/resultats/arrivee-definitive")
-        soup = bs(r.text, "html.parser")
+    async def _request_tableau_arrive(self, session):
+        async with session.get(f"https://www.letrot.com/stats/fiche-course/{self.date}/{self.idHippo}/{self.numCourse}/resultats/arrivee-definitive", headers=headers) as response:
+             r = await response.text()
+        soup = bs(r, "html.parser")
         headers_table = soup.find("table", {"id": "result_table"}).find("thead").find("tr").find_all("th")
         table = soup.find("table", {"id": "result_table"}).find("tbody")
         rows = table.find_all("tr")
         
         classement = {row.select("td")[1].text : row.select("td")[0].find("span", {"class": "bold"}).text for row in rows}       
         self.classement = classement
-        return rows,classement
+        self.r_tab_arrivee = rows,classement
     
-    def _request_partant_pmu(self):
-        date_pmu = "".join(self.date.split("-")[::-1])  
-        participants_pmu = get_request_with_session(f"https://online.turfinfo.api.pmu.fr/rest/client/65/programme/{date_pmu}/R{self.numReunion}/C{self.numCourse}/participants")
+    async def _request_partant_pmu(self, session):
+        date_pmu = "".join(self.date.split("-")[::-1]) 
+        async with session.get(f"https://online.turfinfo.api.pmu.fr/rest/client/65/programme/{date_pmu}/R{self.numReunion}/C{self.numCourse}/participants", headers=headers) as response:
+             participants_pmu = await response.json()
         try:
-            pmu_jsoned = participants_pmu.json()["participants"]
+            pmu_jsoned = participants_pmu["participants"]
             participants = pd.json_normalize(pmu_jsoned, sep="_").to_dict(orient="records")
             participants_with_id = [dict(item, **{"id": self.courseId, "numReunion": self.numReunion}) for item in participants]  
-            return participants_with_id
+            self.r_partant_pmu = participants_with_id
         except:
-            raise Exception("Erreur API PMU")
+            raise PMUError("Erreur API PMU")
             
         
         
-    def _info_tableau_partant(self):
+    async def _info_tableau_partant(self):
         chevaux = []
         
+        tasks = []
+        async with aiohttp.ClientSession() as session:
+            tasks.append(asyncio.ensure_future(self._request_tableau_partants(session)))
+            tasks.append(asyncio.ensure_future(self._request_tableau_arrive(session)))
+            tasks.append(asyncio.ensure_future(self._request_partant_pmu(session)))
+            tasks.append(asyncio.ensure_future(self.get_info_couple(session)))
+            tasks.append(asyncio.ensure_future(self.get_info_cheval_hippo(session)))
+            res = await asyncio.gather(*tasks, return_exceptions=True)
+            
+        for r in res:
+            if type(r) == PMUError:
+                raise PMUError("dsfgkjh")
+       
         try:
-            tableau_partants, headers_table = self._request_tableau_partants()
-            tableau_arrivee,classement = self._request_tableau_arrive()
-            tableau_pmu = self._request_partant_pmu()
+            tableau_partants, headers_table = self.r_tab_partant
+            tableau_arrivee,classement = self.r_tab_arrivee
+            tableau_pmu = self.r_partant_pmu
+            
         except:
             return None
-
-        info_couple = self.get_info_couple()
-        info_chevaux_hippo = self.get_info_cheval_hippo()
+        try:
+            info_chevaux_hippo = self.info_cheval_hippo
+            info_couple = self.couple_info
+        except:
+            pass
     
         chevaux.extend(tableau_pmu)
         
@@ -317,7 +193,7 @@ class Partants():
                 cheval["date"] = self.date
                 cheval["url"] = col[1].find("a").get("href")
 
-
+                cheval["heureCourse"] = self.heure
                 cheval["fer"] = int(col[3].text) if col[3].text else 0
                 cheval["firstTimeFer"] = 1 if col[3].find("div", {"class", "fer-first-time"}) else 0
                 cheval["sex"] = 0 if col[4].text == "M" else 1
@@ -347,11 +223,24 @@ class Partants():
                 
                 if len(cheval["music"]) < 4:
                     raise DataError("not enough data")
-                    
-                cheval.update(self.get_info_cheval(cheval["url"], self.date,cheval["driver"]))
-                cheval.update(self.get_tracking(cheval["url"]))
-                cheval.update(info_couple[i])
-                cheval.update(info_chevaux_hippo[i])
+                
+                t_cheval = []
+                async with aiohttp.ClientSession() as session:
+                    t_cheval.append(asyncio.ensure_future(self.get_info_cheval(session,cheval["url"], self.date,cheval["driver"])))
+                    t_cheval.append(asyncio.ensure_future(self.get_info_driver(session,cheval["driver"])))
+                    t_cheval.append(asyncio.ensure_future(self.get_tracking(session,cheval["url"])))
+                    res = await asyncio.gather(*t_cheval, return_exceptions=True)
+                for r in res:
+                    if type(r) == DataError:
+                        raise DataError("dsfgkjh")
+                for dic in res:
+                    cheval.update(dic)
+
+                try:
+                    cheval.update(info_couple[i])
+                    cheval.update(info_chevaux_hippo[i])
+                except:
+                    pass
 
                 cheval["formeVictoire"] = 1 if cheval["nbVictoireMusic"]/len(cheval["music"]) > 0.33 else 0
                 cheval["formePlace"] = 1 if cheval["nbPlaceMusic"]/len(cheval["music"]) > 0.33 else 0
@@ -383,12 +272,13 @@ class Partants():
                 cheval["gain"] = int(col[11].find("div", class_="gains").text.replace(" ", "")[:-1])
                 
                 chevaux[i].update(cheval)
-        return chevaux
+        self.info_partants = chevaux
     
-    def get_info_cheval(self, url, date, driver):
-        r = requests.get(url + "-paginate-2", headers=headers)
+    async def get_info_cheval(self,session, url, date, driver):
+        async with session.get(url + "-paginate-2", headers=headers) as response:
+             r = await response.json()
         date_debut = datetime.date.fromisoformat(date)
-        jsoned = r.json()["data"]
+        jsoned = r["data"]
 
         info_dict = {}
 
@@ -403,7 +293,7 @@ class Partants():
             reduction = bs(c["reduction"], "html.parser").span.text
             reduction = reduction.replace("'", "").replace('\"', "")
             try:
-                c["allocation"] = int(bs(c["reduction"], "html.parser").span.text.lstrip("0"))
+                c["allocation"] = int(bs(c["allocation"], "html.parser").span.text.lstrip("0"))
             except:
                 c["allocation"] = 0
             
@@ -476,9 +366,59 @@ class Partants():
         info_dict["rentree"] = 1 if info_dict["tpsLastRace"] > 30 else 0
 
         return info_dict
+
+    async def get_info_driver(self,session, url):
+
+        date = datetime.date.fromisoformat(self.date)
+        
+        d = datetime.timedelta(days=1)
+        d2 = datetime.timedelta(days=365)
+
+        date_arrive = (date - d).strftime("%d-%m-%Y").replace("-", "%2F")
+        date_depart = (date  - d2).strftime("%d-%m-%Y").replace("-", "%2F")
+        driver_id = url.split("/")[-3]
+        n_url = f"https://www.letrot.com/stats/fiche-homme/analysesperformances-paginate?lenght=100&firstTime=true&hom_type=jockey&hom_num_encode={driver_id}&ferrure=all&hippodrome=all&corde=all&sol=all&discipline=A&depart=all&datepicker_du={date_depart}&datepicker_au={date_arrive}"
+        async with session.get(n_url, headers=headers) as response:
+             r = await response.json()
+        jsoned = r["data"]
+        info_dict = {}
+        
+        for d in jsoned:
+            d["dateCourse"] = datetime.date.fromisoformat(bs(d["date_course"], "html.parser").span.text)
+            d["rang"] = int(bs(d["rang"], "html.parser").find("span").text)
+
+            reduction = d["reduction"].replace("'", "").replace('\"', "")
+            
+            if reduction != "":
+                reduction_min = int(str(reduction)[0])
+                reduction_sec = int(str(reduction)[1:3])
+                reduction_ssec = int(str(reduction)[3])
+                d["reduction"] = reduction_min*60*10 + reduction_sec*10 + reduction_ssec
+            else:
+                d["reduction"] = np.nan
+            
+            d["distance"] = int(d["distance"].replace(" ", "")) if d["distance"] != None else None
+            try:
+                d["allocation"] = int(bs(d["allocation"], "html.parser").span.text.lstrip("0"))
+            except:
+                d["allocation"] = 0
+
+
+        
+        weights = [ max(x["allocation"], 1) for x in jsoned]
+        if sum(weights) == 0:
+            raise DataError("Not enough Data")
+
+        prefered_dist = int(np.average([ x["distance"] for x in jsoned if x["distance"] != None ], weights=weights))
+        
+        mean_reduc = pd.Series([d["reduction"] for d in jsoned][::-1]).dropna().ewm(20).mean().iloc[-1]
+        
+        info_dict["mean_reduc_driver"] = mean_reduc
+        info_dict["prefered_dist_driver"] = prefered_dist
+        
+        return info_dict
     
-    
-    def get_info_couple(self):
+    async def get_info_couple(self, session):
         couple_info = []
 
         date = datetime.date.fromisoformat(self.date)
@@ -488,11 +428,12 @@ class Partants():
 
         date_arrive = (date - d).strftime("%d-%m-%Y").replace("-", "%2F")
         date_depart = (date  - d2).strftime("%d-%m-%Y").replace("-", "%2F")
-
+        
         url = f"https://www.letrot.com/stats/fiche-course/{self.date}/{self.idHippo}/{self.numCourse}/partants/couples/paginate?datepicker_du={date_depart}&datepicker_au={date_arrive}"
-        r = requests.get(url, headers=headers)
-        dic_json = r.json()
-        data = dic_json["data"]
+                
+        async with session.get(url, headers=headers) as response:
+             r = await response.json()
+        data = r["data"]
 
         data_sorted = sorted(data, key=lambda x: x["numero"])
         for couple in data_sorted:
@@ -510,9 +451,9 @@ class Partants():
             cheval["nonPartant"] = couple["nonPartant"]
             cheval["moreFirstThanThirdCouple"] = 1 if cheval["nbVictoiresCouple"] > cheval["nb3emeCouple"] + cheval["nb2emeCouple"] else 0
             couple_info.append(cheval)
-        return couple_info
+        self.couple_info = couple_info
     
-    def get_info_cheval_hippo(self):
+    async def get_info_cheval_hippo(self, session):
         couple_info = []
 
         date = datetime.date.fromisoformat(self.date)
@@ -522,11 +463,11 @@ class Partants():
 
         date_arrive = (date - d).strftime("%d-%m-%Y").replace("-", "%2F")
         date_depart = (date  - d2).strftime("%d-%m-%Y").replace("-", "%2F")
-
         url = f"https://www.letrot.com/stats/fiche-course/{self.date}/{self.idHippo}/{self.numCourse}/partants/chevaux/paginate?numHippodrome={self.idHippo}&piste=all&datepicker_du={date_depart}&datepicker_au={date_arrive}"
-        r = requests.get(url, headers=headers)
-        dic_json = r.json()
-        data = dic_json["data"]
+        
+        async with session.get(url, headers=headers) as response:
+             r = await response.json()
+        data = r["data"]
 
         data_sorted = sorted(data, key=lambda x: x["numero"])
         for couple in data_sorted:
@@ -547,11 +488,12 @@ class Partants():
                                               
             cheval["perfHippo"] = 1 if cheval["txReussiteHippo"] > 0.5 and cheval["nbCourseHippo"] > 5 else 0
             couple_info.append(cheval)
-        return couple_info
+        self.info_cheval_hippo = couple_info
     
-    def get_tracking(self, url):
-        r = requests.get(url.replace("dernieres-performances", "tracking"), headers=headers)
-        soup = bs(r.text, "html.parser")
+    async def get_tracking(self,session, url):
+        async with session.get(url.replace("dernieres-performances", "tracking"), headers=headers) as response:
+             r = await response.text()
+        soup = bs(r, "html.parser")
         headers_table = soup.find("table", {"id": "result_table"}).find("thead").find("tr").find_all("th")
         table = soup.find("table", {"id": "result_table"}).find("tbody")
         rows = table.find_all("tr")
@@ -560,6 +502,7 @@ class Partants():
         
         distance_au_premier_arrivee = []
         accélération_500m = []
+        gain_classement_500m = []
         for row in rows:
             dist_prem = int(row.find_all("td")[2].span.text)
             if dist_prem < 9999:
@@ -569,84 +512,17 @@ class Partants():
             fin = int(row.find_all("td")[18].span.text)
             if pre_fin < 2000 and fin < 2000:                                            
                 accélération_500m.append(pre_fin - fin)
+                
+
+            try:
+                class_500m = int(row.find_all("td")[16].span.text)
+                class_final = int(row.find_all("td")[1].find("span", {"class": "bold"}).text)
+                if class_500m -  class_final < 10:
+                    gain_classement_500m.append(class_500m -  class_final)
+            except:
+                gain_classement_500m.append(0)
             
         info_tracking["mean_dist_arrivee"] = np.mean(distance_au_premier_arrivee) if len(distance_au_premier_arrivee) > 0 else np.nan
-        info_tracking["acceleration_500m"] = np.mean(accélération_500m) if len(accélération_500m) else np.nan
-            
+        info_tracking["acceleration_500m"] = np.mean(accélération_500m) if len(accélération_500m) > 0 else np.nan
+        info_tracking["gain_classement_fin"] = np.mean(gain_classement_500m) if len(gain_classement_500m) > 0 else np.nan
         return info_tracking
-
-
-class Predicion():
-    def __init__(self, tableau_partant) -> None:
-        self.X: pd.DataFrame = tableau_partant
-
-        self.prepare_for_pred()
-
-        self.model1: xlogit.MultinomialLogit = pickle.load(open("models/cl_v1.pickle", "rb"))
-        self.model2: xlogit.MultinomialLogit = pickle.load(open("models/cl_v2.pickle", "rb"))
-
-        self.model_ranker: lightgbm.LGBMRanker = pickle.load(open("models/rankerv1.pickle", "rb"))
-
-        # self.predict()
-
-    def prepare_for_pred(self):
-        self.X.groupby("id").filter(lambda x: len(x) > 8)
-        self.X["lifepercwin"] = self.X["nombreVictoires"] / self.X["nombreCourses"]
-        self.X["winPrace"] = self.X["gainsParticipant_gainsCarriere"] / self.X["nombreCourses"]
-        self.X["available"] = 1
-        self.X.loc[self.X["statut"] == "NON_PARTANT", "available"] = 0
-
-        self.X["publicProbaOfWinning"] = 1 / self.X["dernierRapportDirect_rapport"]
-        self.X.fillna(0, inplace=True)
-        self.X.replace([np.inf, -np.inf], 0, inplace=True)
-
-
-        multiindex = [[],[]]
-
-        for i in self.X.id.unique():
-            for j in range(0,18):
-                multiindex[0].append(i)
-                multiindex[1].append(j)
-
-        self.X = self.X.set_index(["id", self.X.groupby("id").cumcount()])
-        new_index = pd.MultiIndex.from_arrays(multiindex, names=["id", "num"])
-        self.X = self.X.reindex(new_index, fill_value=0).reset_index(level=1, drop=True).reset_index()
-
-        nindex = len(self.X.groupby("id")) * list(range(1,self.X.groupby("id").cumcount().max()+2))
-        self.X = self.X.assign(num=nindex)
-        
-        self.X.to_csv("test.csv")
-
-    def predict(self):
-        features = ['acceleration_500m','nbVictoiresCouple','nbCourseCouple','rentree','last_race_dist','tpsLastRace','timeSinceRecord',
-                    'minReduction','medianReduction','meanReduction','changementCategorie','distToPreferedDist','prefered_dist','jockeyHabitude',
-                    'nbDiscalifieMusic','nbVictoireMusic','nbPlaceMusic',
-                    'fer','gainsParticipant_gainsCarriere','sex','age','dist', 'firstTimeFer',
-                    'formePlace','formeVictoire','lastPerf','mean_dist_arrivee','nbVictoiresHippo','nombreCourses','nbCourseHippo',
-                    'txVictoireCouple','txVictoireHippo']
-
-        for f in features:
-            if f not in list(self.X):
-                self.X[f] = 0
-
-        self.X["rank_pred"] = self.model_ranker.predict(self.X[self.model_ranker.feature_name_])
-
-        # choice_estimate, proba_estimate = self.model1.predict(X=self.X[features], varnames=features, ids=self.X["id"], alts=self.X["num"], avail=self.X["available"],return_proba=True)         
-        # self.X["proba_1"] = proba_estimate.flatten()
-        # self.X["proba_1"].replace(-np.inf,0, inplace=True)
-        # self.X["proba_1"].fillna(0, inplace=True)
-
-        choice, proba = self.model2.predict(X=self.X[["publicProbaOfWinning","rank_pred"]],varnames=["publicProbaOfWinning","rank_pred"], ids=self.X["id"],alts=self.X["num"],avail=self.X["available"], return_proba=True)
-
-        return choice,proba
-
-
-def get_df_partants(courses):
-    info = []
-    t = time.time()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-        res = executor.map(Partants, gen_rows(courses))
-        for i in res:
-            if isinstance(i.info_partants, list):
-                info.extend(i.info_partants)
-    return pd.DataFrame(info)
