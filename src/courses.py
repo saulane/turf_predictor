@@ -19,8 +19,8 @@ headers = {
     'Connection': 'keep-alive',
 }
 
-hippo_letrot = ["LE MONT-SAINT-MICHEL-PONTORSON", "BORDEAUX", "LE CROISE-LAROCHE"]
-hippo_pmu =  ["LE MONT SAINT MICHEL", "LE BOUSCAT", "LE CROISE LAROCHE"]
+hippo_letrot = ["LE MONT-SAINT-MICHEL-PONTORSON", "BORDEAUX", "LE CROISE-LAROCHE","CAGNES-SUR-MER","MESLAY-DU-MAINE"]
+hippo_pmu =  ["LE MONT SAINT MICHEL", "LE BOUSCAT", "LE CROISE LAROCHE","CAGNES/MER","MESLAY DU MAINE"]
 
 class Programme():
     def __init__(self, debut, fin):
@@ -59,7 +59,6 @@ class Programme():
                 return None
 
     async def _get_programme_from_letrot(self, date):
-        print(1)
         debut = date[1].strftime("%d-%m-%Y")
         fin = date[0].strftime("%d-%m-%Y")
 #         print(debut)

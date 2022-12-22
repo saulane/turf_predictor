@@ -78,7 +78,9 @@ class Predicion():
         # self.X["proba_1"].replace(-np.inf,0, inplace=True)
         # self.X["proba_1"].fillna(0, inplace=True)
 
-        choice, proba = self.model2.predict(X=self.X[["publicProbaOfWinning","mean_rank"]],varnames=["publicProbaOfWinning","mean_rank"], ids=self.X["id"],alts=self.X["num"], return_proba=True)
+
+        self.X["publicProbaOfWinning"].replace(np.inf, 0, inplace=True)
+        choice, proba = self.model2.predict(X=self.X[["publicProbaOfWinning","mean_rank"]],varnames=["publicProbaOfWinning","mean_rank"], ids=self.X["id"],alts=self.X["num"],avail=self.X["available"], return_proba=True)
 
         return choice,proba,self.X["dernierRapportDirect_rapport"].to_numpy().reshape(proba.shape)
 

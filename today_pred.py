@@ -11,7 +11,10 @@ import asyncio
 import numpy as np
 
 def kelly(p,b):
-    return (p-(1/b))/(1-1/b)
+    if b > 0:
+        return (p-(1/b))/(1-1/b)
+    else:
+        return 0
 
 if __name__ == "__main__":
     args = sys.argv
@@ -85,7 +88,10 @@ if __name__ == "__main__":
 
                 should_bet = expe_pos > 0.4
 
-                kelfrac = kelly(np.mean([1/sr_c_o, sr_c_p]), sr_c_o) / 5
-                print(cheval["heureCourse"],numcourses[i],"=>",cheval["nom"], c+1,f"(SR: {sr_c}, {round(sr_c_p, 3)}, {round(kelfrac, 3)})","|",round(proba[i, c], 3), should_bet, place)
+                if sr_c_o > 0:
+                    kelfrac = kelly(np.mean([1/sr_c_o, sr_c_p]), sr_c_o) / 5
+                else:
+                    kelfrac = 0
+                print(cheval["heureCourse"],numcourses[i],"=>",cheval["nom"], c+1,f"(SR: {sr_c+1}, {round(sr_c_p, 3)}, {round(kelfrac, 3)})","|",round(proba[i, c], 3), should_bet, place)
             except Exception as e:
                 continue

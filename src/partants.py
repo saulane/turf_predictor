@@ -221,7 +221,7 @@ class Partants():
                 cheval["nbPlaceMusic"] = sum(map(lambda x : x <=3 and x > 0,cheval["music"]))
                 
                 
-                if len(cheval["music"]) < 4:
+                if len(list(col[9].text.split())) < 4:
                     raise DataError("not enough data")
                 
                 t_cheval = []
